@@ -67,7 +67,7 @@
 
                 // you can uncomment this next line if you want the 'act_table' to be
                 // empty each time the application runs.
-                tx.executeSql( 'DROP TABLE activity_table', [], nullHandler, nullHandler);
+                //tx.executeSql( 'DROP TABLE activity_table', [], nullHandler, nullHandler);
 
                 // this line actually creates the table act_table if it does not exist
                 // and sets up the columns and their types.
@@ -104,7 +104,7 @@
                     if (result != null && result.rows != null) {
                         for (var i = 0; i < result.rows.length; i++) {
                             var row = result.rows.item(i);
-                            //$('#lbUsers').append('<br>' + row.UserId + '. ' + row.FirstName+ ' ' + row.LastName);
+
                             $('#list').append('<li data-role="list-divider"><a href="details.html">' + row.activity_name + '</a></li>');
                             $('#list').append('<li>Venue: ' + row.activity_venue + '</li>');
                             $('#list').append('<li>Date: ' + row.activity_date + '</li>');
@@ -130,34 +130,66 @@
             }
 
             // the form inputs must be validated first to make sure activity name,
-            // date & volunteer name are NOT empty
+            // date, time & volunteer name are NOT empty
             if (validate()) {
-                // get the date & time in correct format
-                var datetime_array = processDateTimeFormat();
 
-                // make sure the optional fields always return '' if user doesn't enter anything
-                var act_venue;
-                if ( !$('#activity-venue').val() ) {
-                    act_venue = '';
+                // check if activity_name is duplicated or not
+                if ( !isDuplicate( $('#activity-name').val() ) ){
+
+                    // get the date & time in correct format
+                    var datetime_array = processDateTimeFormat();
+
+                    // this is the section that actually inserts the values into the 'act_table'
+                    myDB.transaction(function(transaction) {
+                        transaction.executeSql('INSERT INTO activity_table(activity_name,activity_venue,activity_date,activity_time,activity_volunteer) VALUES(?,?,?,?,?)',
+                        [ $('#activity-name').val(), $('#activity-venue').val(), datetime_array[0], datetime_array[1], $('#activity-volunteer').val() ],
+                        nullHandler, errorHandler);
+                    });
+
+                    // this calls the function that will show what is in the 'act_table' table in the database
+                    listDBValues();
+
+                    return false;
+                } else {
+                    alert('activity name duplicates');
+                    //return;
                 }
-
-                // this is the section that actually inserts the values into the 'act_table'
-                myDB.transaction(function(transaction) {
-                    transaction.executeSql('INSERT INTO activity_table(activity_name,activity_venue,activity_date,activity_time,activity_volunteer) VALUES(?,?,?,?,?)',
-                    [ $('#activity-name').val(), $('#activity-venue').val(), datetime_array[0], datetime_array[1], $('#activity-volunteer').val() ],
-                    nullHandler, errorHandler);
-                });
-
-                // this calls the function that will show what is in the 'act_table' table in the database
-                listDBValues();
-
-                return false;
+    
             } else {
 
                 // there is still empty fields
                 alert('activity name, date, time & volunteer name cannot be empty.');
                 return;
             }   
+        }
+
+        // function to query the db and check for duplicate activity_name
+        function isDuplicate(act_name) {
+
+            // by default let's assume that activity name is NOT duplicated
+            // after searching through the db and comparing, then if the activity name matches any records in the db,
+            // change this variable to true and return it.
+            var isDuplicated = false;
+
+            // this next section will select activity_name from activity_table,
+            // then go through it row by row to check if the activity name user entered is matched or not.
+            myDB.transaction(function(transaction) {
+                transaction.executeSql('SELECT * FROM activity_table;', [],
+                function(transaction, result) {
+                    if (result != null && result.rows != null) {
+                        for (var i = 0; i < result.rows.length; i++) {
+                            var row = result.rows.item(i);
+
+                            if ( row.activity_name.trim() == act_name.trim() ) {
+                                isDuplicated = true;
+                                //break; // jump out of for loop right after figuring out the matched record
+                            }
+                        }
+                    }
+                }, errorHandler);
+            }, errorHandler, nullHandler);
+
+            return isDuplicated;
         }
 
         // function to process the date & time format before inserting to the database.
